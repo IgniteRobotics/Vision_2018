@@ -1,7 +1,20 @@
 import cv2
 import numpy as np
 
-cap = cv2.VideoCapture(1)
+from networktables import NetworkTables
+
+NetworkTables.initialize(server='10.68.29.2')
+
+sd = NetworkTables.getTable('Vision')
+
+
+import subprocess
+import time
+
+subprocess.Popen(["mjpg_streamer", "-i", "/usr/local/lib/input_file.so -f /var/tmp/ -n pic.jpg -r","-o", "/usr/local/lib/output_http.so -w /usr/local/www -p 1180s"])
+time.sleep(.5)
+
+cap = cv2.VideoCapture(0)
 
 lower_hsv = np.array([20, 71, 0])
 upper_hsv = np.array([45, 255, 255])
@@ -62,8 +75,12 @@ def get_box(contours):
 
 while True:
     _, OG_img = cap.read()
+    OG_img = cv2.resize(OG_img, (320,240))
 
-    # img = cv2.GaussianBlur(OG_img, (5,5), 0)
+    img_width = 320
+    img_heigth = 240
+
+# img = cv2.GaussianBlur(OG_img, (5,5), 0)
     # img = cv2.medianBlur(img, 5)
     img = OG_img
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -87,8 +104,16 @@ while True:
 
         radius = 2
         cv2.circle(OG_img, center, radius, (0, 0, 255), 2)
+        center_x = -int(img_width/2) + center[0]
+        
 
-    cv2.imshow('result', OG_img)
-    cv2.imshow('thresh', thresh)
+        sd.putNumber('x', center_x)
+        sd.putNumber('y', center[1])
 
+#     cv2.imshow('result', OG_img)
+#     cv2.imshow('thresh', thresh)
+# 
+    driver_img = cv2.resize(OG_img, (80,60))
+#     cv2.imshow("img", driver_img)
+    cv2.imwrite("/../var/tmp/pic.jpg", driver_img)
     cv2.waitKey(1)
