@@ -1,18 +1,6 @@
 import cv2
+import pickle
 import numpy as np
-
-from networktables import NetworkTables
-
-NetworkTables.initialize(server='10.68.29.2')
-
-sd = NetworkTables.getTable('Vision')
-
-
-import subprocess
-import time
-
-subprocess.Popen(["mjpg_streamer", "-i", "/usr/local/lib/input_file.so -f /var/tmp/ -n pic.jpg -r","-o", "/usr/local/lib/output_http.so -w /usr/local/www -p 1180s"])
-time.sleep(.5)
 
 cap = cv2.VideoCapture(0)
 
@@ -76,6 +64,9 @@ def get_box(contours):
     result = [hull, area, (x,y), rect]
     return result
 
+f = open('clf.pkl', 'rb')
+clf = pickle.load(f)
+
 while True:
     _, OG_img = cap.read()
     OG_img = cv2.resize(OG_img, (320,240))
@@ -97,8 +88,6 @@ while True:
     _, contours, heirarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
     result = get_box(contours)
-
-    sd.putBoolean('target_found', False)
     if result is not None:
         [hull, area, center, rect] = result 
         (x, y ,w, h ) = rect
@@ -109,20 +98,16 @@ while True:
         radius = 2
         cv2.circle(OG_img, center, radius, (0, 0, 255), 2)
         center_x = -int(img_width/2) + center[0]
-        
 
-        sd.putNumber('x', center_x)
-        sd.putNumber('y', center[1])
-        sd.putNumber('area', area)
-        sd.putNumber('relArea', (area / (img_width * img_height)))
-        sd.putBoolean('target_found', True)
+        crop_img = thresh[y:y+h, x:x+w]
+        feature = [h, w, np.count_nonzero(thresh) / (h*w)]
+        prediction = clf.predict([feature])
+        print('prediction')
+        print(prediction)
 
-    sd.putNumber('img_width', img_width)
-    sd.putNumber('img_height', img_height)
+        cv2.imshow('crop', crop_img)
+
     cv2.imshow('result', OG_img)
     cv2.imshow('thresh', thresh)
-# 
-    driver_img = cv2.resize(OG_img, (80,60))
-#     cv2.imshow("img", driver_img)
-    cv2.imwrite("/../var/tmp/pic.jpg", driver_img)
-    cv2.waitKey(1)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
